@@ -61,6 +61,7 @@ export async function POST(
     await saveRoom(room);
     return NextResponse.json({ room: sanitizeRoomForClient(room) });
   } catch (err) {
+    console.error('[start route] error:', err); // ← 이 줄 추가
     return NextResponse.json(
       { error: err instanceof Error ? err.message : '게임 시작에 실패했습니다.' },
       { status: 500 }
