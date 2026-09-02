@@ -41,7 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: { code: strin
 
     // 전원이 답했으면 자동으로 채점 + 공개
     if (room.players.every((p) => p.answered)) {
-      const winner = winnerSide(room.currentPair);
+      const winner = winnerSide(room.currentPair as any);
       room.players.forEach((p) => {
         if (p.chosenSide === winner) p.score += 1;
       });
