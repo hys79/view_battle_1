@@ -1,33 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRoom, sanitizeRoomForClient } from '@/lib/rooms';
+import { getRoom, sanitizeRoomForClient } from '@/lib/rooms';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * POST /api/rooms
- * body: { nickname: string, totalRounds: number }
- * 방을 만들고, 만든 사람을 방장(host)으로 등록한다.
+ * GET /api/rooms/[code]
+ * 클라이언트가 1~1.5초 간격으로 폴링하는 엔드포인트.
+ * 정답이 공개되지 않은 라운드는 views가 제거된 상태로 내려간다.
  */
-export async function POST(req: NextRequest) {
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ code: string }> }
+) {
   try {
-    const body = await req.json();
-    const nickname = String(body?.nickname ?? '').trim();
-    const totalRounds = parseInt(body?.totalRounds, 10) || 5;
+    const { code } = await params;
 
-    if (!nickname) {
-      return NextResponse.json({ error: '닉네임을 입력해주세요.' }, { status: 400 });
+    const room = await getRoom(code);
+    if (!room) {
+      return NextResponse.json({ error: '존재하지 않는 방 코드입니다.' }, { status: 404 });
     }
-
-    const room = await createRoom(nickname, totalRounds);
-    const me = room.players[0]; // 방장 = 첫 번째 플레이어
-
-    return NextResponse.json({
-      room: sanitizeRoomForClient(room),
-      playerId: me.id
-    });
+    return NextResponse.json({ room: sanitizeRoomForClient(room) });
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : '방 생성에 실패했습니다.' },
+      { error: err instanceof Error ? err.message : '방 정보를 불러오지 못했습니다.' },
       { status: 500 }
     );
   }

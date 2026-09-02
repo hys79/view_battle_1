@@ -21,7 +21,12 @@ type CsvRow = {
 
 // 이 파일은 서버(API Route)에서만 import 되어야 합니다. ('fs' 사용)
 export function loadSongs(): Song[] {
-  const csvText = fs.readFileSync(CSV_PATH, 'utf-8');
+  let csvText = fs.readFileSync(CSV_PATH, 'utf-8');
+
+  // Excel "CSV UTF-8" 저장 시 붙는 BOM 제거 (없으면 첫 헤더 파싱이 깨짐)
+  if (csvText.charCodeAt(0) === 0xfeff) {
+    csvText = csvText.slice(1);
+  }
 
   const parsed = Papa.parse<CsvRow>(csvText, {
     header: true,
@@ -30,6 +35,7 @@ export function loadSongs(): Song[] {
   });
 
   const usedIds = new Map<string, number>();
+  let skippedCount = 0;
 
   const songs: Song[] = parsed.data
     .map((row, i) => {
@@ -55,7 +61,16 @@ export function loadSongs(): Song[] {
       return { id, artist, title, genres, videoId };
     })
     // videoId나 제목이 비어있는 빈 줄은 건너뜀 (엑셀에서 흔히 생기는 빈 행 대비)
-    .filter((s) => s.videoId && s.title);
+    .filter((s) => {
+      const ok = Boolean(s.videoId && s.title);
+      if (!ok) skippedCount++;
+      return ok;
+    });
+
+  if (skippedCount > 0) {
+    // 빌드/배포를 막을 정도는 아니므로 throw하지 않고 서버 로그로만 남긴다.
+    console.warn(`[songs.csv] videoId 또는 제목이 비어 있어 ${skippedCount}개 행을 건너뛰었습니다.`);
+  }
 
   return songs;
 }

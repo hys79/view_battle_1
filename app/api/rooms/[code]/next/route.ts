@@ -1,57 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRoom, saveRoom, sanitizeRoomForClient } from '@/lib/rooms';
-import { pickPair } from '@/lib/gameLogic';
+import { getRoom, saveRoom, makePlayer, sanitizeRoomForClient } from '@/lib/rooms';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * POST /api/rooms/[code]/next
- * body: { playerId: string }
- * 방장만 다음 라운드로 넘길 수 있다. totalRounds를 넘기면 status='finished'.
+ * POST /api/rooms/[code]/join
+ * body: { nickname: string }
+ * 대기 중(waiting)인 방에만 참가할 수 있다.
  */
-export async function POST(req: NextRequest, { params }: { params: { code: string } }) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ code: string }> }
+) {
   try {
+    const { code } = await params;
+
     const body = await req.json();
-    const playerId = String(body?.playerId ?? '');
-
-    const room = await getRoom(params.code);
-    if (!room) return NextResponse.json({ error: '존재하지 않는 방 코드입니다.' }, { status: 404 });
-    if (room.hostId !== playerId) {
-      return NextResponse.json({ error: '방장만 다음 라운드로 넘길 수 있습니다.' }, { status: 403 });
-    }
-    if (!room.roundRevealed) {
-      return NextResponse.json({ error: '아직 이번 라운드 정답이 공개되지 않았습니다.' }, { status: 409 });
+    const nickname = String(body?.nickname ?? '').trim();
+    if (!nickname) {
+      return NextResponse.json({ error: '닉네임을 입력해주세요.' }, { status: 400 });
     }
 
-    const nextRoundNo = room.currentRound + 1;
-
-    if (nextRoundNo > room.totalRounds) {
-      room.status = 'finished';
-      room.currentPair = null;
-      await saveRoom(room);
-      return NextResponse.json({ room: sanitizeRoomForClient(room) });
+    const room = await getRoom(code);
+    if (!room) {
+      return NextResponse.json({ error: '존재하지 않는 방 코드입니다.' }, { status: 404 });
+    }
+    if (room.status !== 'waiting') {
+      return NextResponse.json({ error: '이미 시작된 방에는 참가할 수 없습니다.' }, { status: 409 });
+    }
+    if (room.players.length >= 12) {
+      return NextResponse.json({ error: '방이 가득 찼습니다.' }, { status: 409 });
     }
 
-    let usedIds = new Set(room.usedSongIds);
-    const available = room.songPool.filter((s) => s.views != null && !usedIds.has(s.id));
-    if (available.length < 2) usedIds = new Set(); // 다 썼으면 재사용
-
-    const nextPair = pickPair(room.songPool, usedIds);
-
-    room.currentRound = nextRoundNo;
-    room.currentPair = nextPair;
-    room.usedSongIds = [...usedIds, nextPair.left.id, nextPair.right.id];
-    room.roundRevealed = false;
-    room.players.forEach((p) => {
-      p.answered = false;
-      p.chosenSide = null;
-    });
-
+    const player = makePlayer(nickname, false);
+    room.players.push(player);
     await saveRoom(room);
-    return NextResponse.json({ room: sanitizeRoomForClient(room) });
+
+    return NextResponse.json({
+      room: sanitizeRoomForClient(room),
+      playerId: player.id
+    });
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : '다음 라운드 진행에 실패했습니다.' },
+      { error: err instanceof Error ? err.message : '참가에 실패했습니다.' },
       { status: 500 }
     );
   }

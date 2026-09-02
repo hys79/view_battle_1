@@ -8,15 +8,20 @@ export const dynamic = 'force-dynamic';
  * body: { nickname: string }
  * 대기 중(waiting)인 방에만 참가할 수 있다.
  */
-export async function POST(req: NextRequest, { params }: { params: { code: string } }) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ code: string }> }
+) {
   try {
+    const { code } = await params;
+
     const body = await req.json();
     const nickname = String(body?.nickname ?? '').trim();
     if (!nickname) {
       return NextResponse.json({ error: '닉네임을 입력해주세요.' }, { status: 400 });
     }
 
-    const room = await getRoom(params.code);
+    const room = await getRoom(code);
     if (!room) {
       return NextResponse.json({ error: '존재하지 않는 방 코드입니다.' }, { status: 404 });
     }

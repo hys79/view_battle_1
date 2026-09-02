@@ -11,12 +11,17 @@ export const dynamic = 'force-dynamic';
  * body: { playerId: string }
  * 방장만 게임을 시작할 수 있다.
  */
-export async function POST(req: NextRequest, { params }: { params: { code: string } }) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ code: string }> }
+) {
   try {
+    const { code } = await params;
+
     const body = await req.json();
     const playerId = String(body?.playerId ?? '');
 
-    const room = await getRoom(params.code);
+    const room = await getRoom(code);
     if (!room) return NextResponse.json({ error: '존재하지 않는 방 코드입니다.' }, { status: 404 });
     if (room.hostId !== playerId) {
       return NextResponse.json({ error: '방장만 게임을 시작할 수 있습니다.' }, { status: 403 });
