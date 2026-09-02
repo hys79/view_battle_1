@@ -20,6 +20,9 @@ export async function fetchViewCounts(
 ): Promise<{ demo: boolean; views: Record<string, number> }> {
   const apiKey = process.env.YOUTUBE_API_KEY;
 
+   // 임시 디버그 로그 (원인 확인 후 지울 것)
+  console.log('[fetchViewCounts] apiKey exists:', !!apiKey, 'length:', apiKey?.length, 'videoIds count:', videoIds.length);
+  
   if (!apiKey) {
     const views: Record<string, number> = {};
     videoIds.forEach((id) => {
